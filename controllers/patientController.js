@@ -1,57 +1,136 @@
 const db = require('../models/db');
 
-// Get all patients
-exports.getAllPatients = (req, res) => {
-    db.query('SELECT * FROM patients', (err, results) => {
-        if (err) throw err;
+// Add a new patient with insurance and prescription details
+exports.addPatient = async (req, res) => {
+    const { name, national_id, prescription, allergies, insurance_id } = req.body;
+
+    if (!name || !national_id || national_id.length !== 16 || !prescription || !insurance_id) {
+        return res.status(400).json({ message: 'Name, 16-character national ID, prescription, and insurance are required' });
+    }
+
+    try {
+        const parsedPrescription = JSON.parse(prescription);
+
+        // Calculate total cost based on the medicines in the prescription
+        const totalCost = await calculateTotalCost(parsedPrescription);
+
+        // Deduct medicine quantities from inventory
+        for (let item of parsedPrescription) {
+            await db.query('UPDATE inventory SET quantity = quantity - ? WHERE id = ?', [item.quantity, item.id]);
+
+            // Check if the quantity went negative, which would indicate an inventory error
+            const [updatedItem] = await db.query('SELECT quantity FROM inventory WHERE id = ?', [item.id]);
+            if (updatedItem.quantity < 0) {
+                throw new Error(`Insufficient stock for medicine with ID ${item.id}`);
+            }
+        }
+
+        // Get the insurance coverage rate
+        const insurance = await db.query('SELECT * FROM insurances WHERE id = ?', [insurance_id]);
+        if (insurance.length === 0) {
+            return res.status(400).json({ message: 'Invalid insurance' });
+        }
+        const coverageRate = insurance[0].coverage_rate;
+        const finalCost = totalCost * (1 - coverageRate / 100);
+
+        // Insert patient into the database
+        const query = 'INSERT INTO patients (name, national_id, prescription, allergies, insurance_id, total_cost, final_cost) VALUES (?, ?, ?, ?, ?, ?, ?)';
+        await db.query(query, [name, national_id, prescription, allergies, insurance_id, totalCost, finalCost]);
+        res.status(201).json({ message: 'Patient added successfully!', totalCost, finalCost });
+    } catch (err) {
+        console.error('Error adding patient:', err);
+        res.status(500).json({ message: 'Internal server error' });
+    }
+};
+
+
+// Update a patient with insurance details and prescription
+exports.updatePatient = async (req, res) => {
+    const { id } = req.params;
+    const { name, national_id, prescription, allergies, insurance_id } = req.body;
+
+    // Validate inputs
+    if (!name || !national_id || national_id.length !== 16 || !prescription || !insurance_id) {
+        return res.status(400).json({ message: 'Name, 16-character national ID, prescription, and insurance are required' });
+    }
+
+    try {
+        // Recalculate total cost and final cost based on the updated prescription
+        const totalCost = await calculateTotalCost(JSON.parse(prescription));
+        const insurance = await db.query('SELECT * FROM insurances WHERE id = ?', [insurance_id]);
+        const coverageRate = insurance[0].coverage_rate;
+        const finalCost = totalCost * (1 - coverageRate / 100);
+
+        const query = 'UPDATE patients SET name = ?, national_id = ?, prescription = ?, allergies = ?, insurance_id = ?, total_cost = ?, final_cost = ? WHERE id = ?';
+        await db.query(query, [name, national_id, prescription, allergies, insurance_id, totalCost, finalCost, id]);
+        res.status(200).json({ message: 'Patient updated successfully!', totalCost, finalCost });
+    } catch (err) {
+        console.error('Error updating patient:', err);
+        res.status(500).json({ message: 'Internal server error' });
+    }
+};
+
+// Other existing methods remain the same...
+
+// Get all patients with their associated insurance
+exports.getAllPatients = async (req, res) => {
+    try {
+        const results = await db.query('SELECT p.*, i.name as insurance_name FROM patients p LEFT JOIN insurances i ON p.insurance_id = i.id');
         res.status(200).json(results);
-    });
+    } catch (err) {
+        console.error('Error fetching patients:', err);
+        res.status(500).json({ message: 'Failed to retrieve patients' });
+    }
 };
 
-// Get a specific patient by ID
-exports.getPatientById = (req, res) => {
+// Get a specific patient by ID with insurance details
+exports.getPatientById = async (req, res) => {
     const { id } = req.params;
-    db.query('SELECT * FROM patients WHERE id = ?', [id], (err, results) => {
-        if (err) throw err;
+    try {
+        const results = await db.query('SELECT p.*, i.name as insurance_name FROM patients p LEFT JOIN insurances i ON p.insurance_id = i.id WHERE p.id = ?', [id]);
+        if (results.length === 0) {
+            return res.status(404).json({ message: 'Patient not found' });
+        }
         res.status(200).json(results[0]);
-    });
-};
-
-// Add a new patient
-exports.addPatient = (req, res) => {
-    const { name, prescription, allergies } = req.body;
-    if (!name || !prescription || !allergies) {
-        return res.status(400).json({ message: 'All fields are required' });
+    } catch (err) {
+        console.error('Error fetching patient:', err);
+        res.status(500).json({ message: 'Failed to retrieve patient' });
     }
-
-    const query = 'INSERT INTO patients (name, prescription, allergies) VALUES (?, ?, ?)';
-    db.query(query, [name, prescription, allergies], (err, results) => {
-        if (err) throw err;
-        res.status(201).json({ message: 'Patient added successfully!' });
-    });
-};
-
-// Update a patient by ID
-exports.updatePatient = (req, res) => {
-    const { id } = req.params;
-    const { name, prescription, allergies } = req.body;
-    if (!name || !prescription || !allergies) {
-        return res.status(400).json({ message: 'All fields are required' });
-    }
-
-    const query = 'UPDATE patients SET name = ?, prescription = ?, allergies = ? WHERE id = ?';
-    db.query(query, [name, prescription, allergies, id], (err, results) => {
-        if (err) throw err;
-        res.status(200).json({ message: 'Patient updated successfully!' });
-    });
 };
 
 // Delete a patient by ID
-exports.deletePatient = (req, res) => {
+exports.deletePatient = async (req, res) => {
     const { id } = req.params;
-    const query = 'DELETE FROM patients WHERE id = ?';
-    db.query(query, [id], (err, results) => {
-        if (err) throw err;
+    try {
+        const query = 'DELETE FROM patients WHERE id = ?';
+        await db.query(query, [id]);
         res.status(200).json({ message: 'Patient deleted successfully!' });
-    });
+    } catch (err) {
+        console.error('Error deleting patient:', err);
+        res.status(500).json({ message: 'Internal server error' });
+    }
 };
+
+exports.getAllInsurances = async (req, res) => {
+    try {
+        const results = await db.query('SELECT * FROM insurances');
+        res.status(200).json(results);
+    } catch (err) {
+        console.error('Error fetching insurances:', err);
+        res.status(500).json({ message: 'Failed to retrieve insurances' });
+    }
+};
+
+// Helper function to calculate total cost based on the prescription
+async function calculateTotalCost(prescription) {
+    let totalCost = 0;
+    for (let item of prescription) {
+        const medicine = await db.query('SELECT price FROM inventory WHERE id = ?', [item.id]);
+        if (medicine.length > 0) {
+            totalCost += medicine[0].price * item.quantity;
+        } else {
+            throw new Error(`Medicine with ID ${item.id} not found in inventory`);
+        }
+    }
+    return totalCost;
+}

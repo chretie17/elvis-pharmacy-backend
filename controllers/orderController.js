@@ -1,9 +1,25 @@
 const db = require('../models/db');
 
-// Get all orders
+// Get all ordersconst db = require('../models/db');
+
+// Get all orders with inventory names instead of IDs
 exports.getAllOrders = async (req, res) => {
     try {
-        const results = await db.query('SELECT * FROM orders');
+        const query = `
+            SELECT 
+                orders.id, 
+                orders.order_quantity, 
+                orders.order_date, 
+                orders.status, 
+                inventory.name AS inventory_name 
+            FROM 
+                orders 
+            JOIN 
+                inventory 
+            ON 
+                orders.inventory_id = inventory.id
+        `;
+        const results = await db.query(query);
         res.status(200).json(results);
     } catch (err) {
         console.error(err);
@@ -11,11 +27,27 @@ exports.getAllOrders = async (req, res) => {
     }
 };
 
-// Get a specific order by ID
+// Get a specific order by ID with inventory name
 exports.getOrderById = async (req, res) => {
     const { id } = req.params;
     try {
-        const results = await db.query('SELECT * FROM orders WHERE id = ?', [id]);
+        const query = `
+            SELECT 
+                orders.id, 
+                orders.order_quantity, 
+                orders.order_date, 
+                orders.status, 
+                inventory.name AS inventory_name 
+            FROM 
+                orders 
+            JOIN 
+                inventory 
+            ON 
+                orders.inventory_id = inventory.id
+            WHERE 
+                orders.id = ?
+        `;
+        const results = await db.query(query, [id]);
         if (results.length === 0) {
             return res.status(404).json({ message: 'Order not found' });
         }
@@ -25,6 +57,7 @@ exports.getOrderById = async (req, res) => {
         res.status(500).json({ message: 'Failed to retrieve order' });
     }
 };
+
 
 // Create a new order
 exports.createOrder = async (req, res) => {

@@ -11,5 +11,7 @@ router.get('/:id', verifyToken(['Pharmacist', 'Admin']), patientController.getPa
 router.post('/', verifyToken(['Pharmacist', 'Admin']), patientController.addPatient);
 router.put('/:id', verifyToken(['Pharmacist', 'Admin']), patientController.updatePatient);
 router.delete('/:id', verifyToken(['Pharmacist', 'Admin']), patientController.deletePatient);
+router.get('/in',verifyToken(['Pharmacist', 'Admin']), patientController.getAllInsurances);
+
 
 module.exports = router;

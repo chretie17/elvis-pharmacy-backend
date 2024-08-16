@@ -14,6 +14,7 @@ const pharmacistRoutes = require('./routes/pharmacistRoutes');
 const financialRoutes = require('./routes/financialRoutes');
 const complianceRoutes = require('./routes/complianceRoutes');
 const orderRoutes = require('./routes/orderRoutes');
+const insuranceRoutes = require('./routes/InsuranceRoutes');
 
 const app = express();
 
@@ -42,7 +43,7 @@ app.use('/api/pharmacists', pharmacistRoutes);
 app.use('/api/financial', financialRoutes);
 app.use('/api/compliance', complianceRoutes);
 app.use('/api/orders', orderRoutes);
-
+app.use('/api/insurances', insuranceRoutes);
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
