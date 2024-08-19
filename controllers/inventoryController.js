@@ -22,6 +22,7 @@ exports.getAllInventory = async (req, res) => {
 };
 
 // Get a specific inventory item by ID with additional logic for stock validation
+// Get a specific inventory item by ID with additional logic for stock validation
 exports.getInventoryItemById = async (req, res) => {
     try {
         const { id } = req.params;
@@ -49,16 +50,19 @@ exports.getInventoryItemById = async (req, res) => {
 };
 
 // Add a new inventory item with validation checks
+// Add a new inventory item with validation checks
 exports.addInventoryItem = async (req, res) => {
     try {
-        const { name, manufacturer, type, quantity, expiration_date, price } = req.body;
+        const { name, manufacturer, type, quantity, expiration_date, price, age_allowed_min, age_allowed_max, usage_instructions, side_effects, contraindications } = req.body;
         
         if (!name || !manufacturer || !type || !quantity || !expiration_date || !price) {
-            return res.status(400).json({ message: 'All fields are required' });
+            return res.status(400).json({ message: 'Name, manufacturer, type, quantity, expiration date, and price are required' });
         }
         
-        const query = 'INSERT INTO inventory (name, manufacturer, type, quantity, expiration_date, price) VALUES (?, ?, ?, ?, ?, ?)';
-        await db.query(query, [name, manufacturer, type, quantity, expiration_date, price]);
+        const query = `INSERT INTO inventory 
+                      (name, manufacturer, type, quantity, expiration_date, price, age_allowed_min, age_allowed_max, usage_instructions, side_effects, contraindications) 
+                      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+        await db.query(query, [name, manufacturer, type, quantity, expiration_date, price, age_allowed_min, age_allowed_max, usage_instructions, side_effects, contraindications]);
         res.status(201).json({ message: 'Inventory item added successfully!' });
     } catch (err) {
         console.error('Error adding inventory item:', err);
@@ -67,17 +71,21 @@ exports.addInventoryItem = async (req, res) => {
 };
 
 // Update an inventory item by ID with stock adjustment logic and automatic ordering
+// Update an inventory item by ID with stock adjustment logic and automatic ordering
 exports.updateInventoryItem = async (req, res) => {
     try {
         const { id } = req.params;
-        const { name, manufacturer, type, quantity, expiration_date, price } = req.body;
+        const { name, manufacturer, type, quantity, expiration_date, price, age_allowed_min, age_allowed_max, usage_instructions, side_effects, contraindications } = req.body;
 
         if (!name || !manufacturer || !type || !quantity || !expiration_date || !price) {
-            return res.status(400).json({ message: 'All fields are required' });
+            return res.status(400).json({ message: 'Name, manufacturer, type, quantity, expiration date, and price are required' });
         }
 
-        const updateQuery = 'UPDATE inventory SET name = ?, manufacturer = ?, type = ?, quantity = ?, expiration_date = ?, price = ? WHERE id = ?';
-        const results = await db.query(updateQuery, [name, manufacturer, type, quantity, expiration_date, price, id]);
+        const updateQuery = `UPDATE inventory SET 
+                             name = ?, manufacturer = ?, type = ?, quantity = ?, expiration_date = ?, price = ?, 
+                             age_allowed_min = ?, age_allowed_max = ?, usage_instructions = ?, side_effects = ?, contraindications = ? 
+                             WHERE id = ?`;
+        const results = await db.query(updateQuery, [name, manufacturer, type, quantity, expiration_date, price, age_allowed_min, age_allowed_max, usage_instructions, side_effects, contraindications, id]);
 
         if (results.affectedRows > 0) {
             if (quantity < 3) {

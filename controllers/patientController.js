@@ -2,30 +2,58 @@ const db = require('../models/db');
 
 // Add a new patient with insurance and prescription details
 exports.addPatient = async (req, res) => {
-    const { name, national_id, prescription, allergies, insurance_id } = req.body;
+    const { name, national_id, prescription, allergies, insurance_id, age } = req.body;
 
-    if (!name || !national_id || national_id.length !== 16 || !prescription || !insurance_id) {
-        return res.status(400).json({ message: 'Name, 16-character national ID, prescription, and insurance are required' });
+    if (!name || !national_id || national_id.length !== 16 || !prescription || !insurance_id || !age) {
+        return res.status(400).json({ message: 'Name, 16-character national ID, prescription, insurance, and age are required' });
     }
 
     try {
         const parsedPrescription = JSON.parse(prescription);
 
-        // Calculate total cost based on the medicines in the prescription
-        const totalCost = await calculateTotalCost(parsedPrescription);
-
-        // Deduct medicine quantities from inventory
+        // Validate stock and age restrictions before proceeding
         for (let item of parsedPrescription) {
-            await db.query('UPDATE inventory SET quantity = quantity - ? WHERE id = ?', [item.quantity, item.id]);
+            const [inventoryItem] = await db.query('SELECT quantity, name, age_allowed_min, age_allowed_max FROM inventory WHERE id = ?', [item.id]);
 
-            // Check if the quantity went negative, which would indicate an inventory error
-            const [updatedItem] = await db.query('SELECT quantity FROM inventory WHERE id = ?', [item.id]);
-            if (updatedItem.quantity < 0) {
-                throw new Error(`Insufficient stock for medicine with ID ${item.id}`);
+            if (!inventoryItem) {
+                return res.status(400).json({ message: `Medicine with ID ${item.id} not found in inventory.` });
+            }
+
+            if (inventoryItem.quantity === 0) {
+                return res.status(400).json({ message: `Medicine ${inventoryItem.name} is out of stock.` });
+            }
+
+            if (item.quantity > inventoryItem.quantity) {
+                return res.status(400).json({ message: `Medicine ${inventoryItem.name} has only ${inventoryItem.quantity} units available. You requested ${item.quantity} units.` });
+            }
+
+            // Age validation
+            if (age < inventoryItem.age_allowed_min || age > inventoryItem.age_allowed_max) {
+                return res.status(400).json({ message: `Medicine ${inventoryItem.name} is not allowed for patients of age ${age}.` });
             }
         }
 
-        // Get the insurance coverage rate
+        // Calculate total cost based on the medicines in the prescription
+        const totalCost = await calculateTotalCost(parsedPrescription);
+
+        // Deduct medicine quantities from inventory and create orders if necessary
+        for (let item of parsedPrescription) {
+            await db.query('UPDATE inventory SET quantity = quantity - ? WHERE id = ?', [item.quantity, item.id]);
+
+            const [updatedItem] = await db.query('SELECT quantity, name FROM inventory WHERE id = ?', [item.id]);
+            if (updatedItem.quantity < 0) {
+                throw new Error(`Insufficient stock for medicine with ID ${item.id}`);
+            }
+
+            // If the quantity is below the threshold, create a new order
+            if (updatedItem.quantity < 3) {
+                const orderQuantity = 3 - updatedItem.quantity;
+                const orderQuery = 'INSERT INTO orders (inventory_id, order_quantity, order_date, status) VALUES (?, ?, NOW(), ?)';
+                await db.query(orderQuery, [item.id, orderQuantity, 'Pending']);
+                console.log(`Automatic order created for ${updatedItem.name} due to low stock.`);
+            }
+        }
+
         const insurance = await db.query('SELECT * FROM insurances WHERE id = ?', [insurance_id]);
         if (insurance.length === 0) {
             return res.status(400).json({ message: 'Invalid insurance' });
@@ -34,8 +62,9 @@ exports.addPatient = async (req, res) => {
         const finalCost = totalCost * (1 - coverageRate / 100);
 
         // Insert patient into the database
-        const query = 'INSERT INTO patients (name, national_id, prescription, allergies, insurance_id, total_cost, final_cost) VALUES (?, ?, ?, ?, ?, ?, ?)';
-        await db.query(query, [name, national_id, prescription, allergies, insurance_id, totalCost, finalCost]);
+        const query = 'INSERT INTO patients (name, national_id, prescription, allergies, insurance_id, total_cost, final_cost, age) VALUES (?, ?, ?, ?, ?, ?, ?, ?)';
+        await db.query(query, [name, national_id, prescription, allergies, insurance_id, totalCost, finalCost, age]);
+
         res.status(201).json({ message: 'Patient added successfully!', totalCost, finalCost });
     } catch (err) {
         console.error('Error adding patient:', err);
