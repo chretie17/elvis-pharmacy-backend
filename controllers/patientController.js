@@ -45,12 +45,14 @@ exports.addPatient = async (req, res) => {
                 throw new Error(`Insufficient stock for medicine with ID ${item.id}`);
             }
 
-            // If the quantity is below the threshold, create a new order
+            // If the quantity is below the threshold, create a new order and send notification
             if (updatedItem.quantity < 3) {
                 const orderQuantity = 3 - updatedItem.quantity;
                 const orderQuery = 'INSERT INTO orders (inventory_id, order_quantity, order_date, status) VALUES (?, ?, NOW(), ?)';
                 await db.query(orderQuery, [item.id, orderQuantity, 'Pending']);
-                console.log(`Automatic order created for ${updatedItem.name} due to low stock.`);
+
+                // Send notification for low stock and order creation
+                await db.query('INSERT INTO notifications (message) VALUES (?)', [`Automatic order created for ${updatedItem.name} due to low stock.`]);
             }
         }
 
@@ -65,12 +67,16 @@ exports.addPatient = async (req, res) => {
         const query = 'INSERT INTO patients (name, national_id, prescription, allergies, insurance_id, total_cost, final_cost, age) VALUES (?, ?, ?, ?, ?, ?, ?, ?)';
         await db.query(query, [name, national_id, prescription, allergies, insurance_id, totalCost, finalCost, age]);
 
+        // Send notification for patient addition
+        await db.query('INSERT INTO notifications (message) VALUES (?)', [`Patient ${name} added successfully.`]);
+
         res.status(201).json({ message: 'Patient added successfully!', totalCost, finalCost });
     } catch (err) {
         console.error('Error adding patient:', err);
         res.status(500).json({ message: 'Internal server error' });
     }
 };
+
 
 
 // Update a patient with insurance details and prescription

@@ -15,6 +15,9 @@ const financialRoutes = require('./routes/financialRoutes');
 const complianceRoutes = require('./routes/complianceRoutes');
 const orderRoutes = require('./routes/orderRoutes');
 const insuranceRoutes = require('./routes/InsuranceRoutes');
+const dashesRoutes = require('./routes/dashRoutes');
+const notificationRoutes = require('./routes/notificationRoutes');
+const reportRoutes = require('./routes/reportRoutes');
 
 const app = express();
 
@@ -44,6 +47,10 @@ app.use('/api/financial', financialRoutes);
 app.use('/api/compliance', complianceRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/insurances', insuranceRoutes);
+app.use('/api/dashes;', dashesRoutes);
+app.use('/api/notifications', notificationRoutes);
+app.use('/api/reports', reportRoutes);
+
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);

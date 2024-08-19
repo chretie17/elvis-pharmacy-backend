@@ -1,57 +1,67 @@
 const db = require('../models/db');
 
-// Get all pharmacists
-exports.getAllPharmacists = (req, res) => {
-    db.query('SELECT * FROM pharmacists', (err, results) => {
-        if (err) throw err;
-        res.status(200).json(results);
-    });
+// Get all records (pharmacists and their qualifications)
+exports.getAllRecords = async (req, res) => {
+    try {
+        const [records] = await db.query('SELECT * FROM pharmacists');
+        res.json(records);
+    } catch (error) {
+        console.error('Error fetching records:', error);
+        res.status(500).json({ error: 'Failed to fetch records' });
+    }
 };
 
-// Get a specific pharmacist by ID
-exports.getPharmacistById = (req, res) => {
-    const { id } = req.params;
-    db.query('SELECT * FROM pharmacists WHERE id = ?', [id], (err, results) => {
-        if (err) throw err;
-        res.status(200).json(results[0]);
-    });
-};
+// Add a new pharmacist record
+exports.addRecord = async (req, res) => {
+    const { name, national_id, license_number, qualification_name, qualification_type, issue_date, expiration_date } = req.body;
 
-// Add a new pharmacist
-exports.addPharmacist = (req, res) => {
-    const { name, license_number, qualifications } = req.body;
-    if (!name || !license_number || !qualifications) {
-        return res.status(400).json({ message: 'All fields are required' });
+    if (!name || !national_id || national_id.length !== 16 || !qualification_name || !qualification_type || !issue_date) {
+        return res.status(400).json({ message: 'Name, National ID, qualification name, qualification type, and issue date are required' });
     }
 
-    const query = 'INSERT INTO pharmacists (name, license_number, qualifications) VALUES (?, ?, ?)';
-    db.query(query, [name, license_number, qualifications], (err, results) => {
-        if (err) throw err;
-        res.status(201).json({ message: 'Pharmacist added successfully!' });
-    });
-};
+    try {
+        const query = `
+            INSERT INTO pharmacists (name, national_id, license_number, qualification_name, qualification_type, issue_date, expiration_date)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        `;
+        await db.query(query, [name, national_id, license_number, qualification_name, qualification_type, issue_date, expiration_date]);
 
-// Update a pharmacist by ID
-exports.updatePharmacist = (req, res) => {
-    const { id } = req.params;
-    const { name, license_number, qualifications } = req.body;
-    if (!name || !license_number || !qualifications) {
-        return res.status(400).json({ message: 'All fields are required' });
+        res.status(201).json({ message: 'Record added successfully!' });
+    } catch (error) {
+        console.error('Error adding record:', error);
+        res.status(500).json({ message: 'Internal server error' });
     }
-
-    const query = 'UPDATE pharmacists SET name = ?, license_number = ?, qualifications = ? WHERE id = ?';
-    db.query(query, [name, license_number, qualifications, id], (err, results) => {
-        if (err) throw err;
-        res.status(200).json({ message: 'Pharmacist updated successfully!' });
-    });
 };
 
-// Delete a pharmacist by ID
-exports.deletePharmacist = (req, res) => {
+// Update a pharmacist record
+exports.updateRecord = async (req, res) => {
     const { id } = req.params;
-    const query = 'DELETE FROM pharmacists WHERE id = ?';
-    db.query(query, [id], (err, results) => {
-        if (err) throw err;
-        res.status(200).json({ message: 'Pharmacist deleted successfully!' });
-    });
+    const { name, national_id, license_number, qualification_name, qualification_type, issue_date, expiration_date } = req.body;
+
+    try {
+        const query = `
+            UPDATE pharmacists
+            SET name = ?, national_id = ?, license_number = ?, qualification_name = ?, qualification_type = ?, issue_date = ?, expiration_date = ?
+            WHERE id = ?
+        `;
+        await db.query(query, [name, national_id, license_number, qualification_name, qualification_type, issue_date, expiration_date, id]);
+
+        res.json({ message: 'Record updated successfully!' });
+    } catch (error) {
+        console.error('Error updating record:', error);
+        res.status(500).json({ message: 'Internal server error' });
+    }
+};
+
+// Delete a pharmacist record
+exports.deleteRecord = async (req, res) => {
+    const { id } = req.params;
+
+    try {
+        await db.query('DELETE FROM pharmacists WHERE id = ?', [id]);
+        res.json({ message: 'Record deleted successfully!' });
+    } catch (error) {
+        console.error('Error deleting record:', error);
+        res.status(500).json({ message: 'Internal server error' });
+    }
 };
