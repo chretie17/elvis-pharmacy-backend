@@ -11,5 +11,7 @@ router.get('/:id',verifyToken(['Inventory Manager', 'Admin']), orderController.g
 router.post('/', verifyToken(['Inventory Manager', 'Admin']), orderController.createOrder);
 router.put('/:id', verifyToken(['Inventory Manager', 'Admin']), orderController.updateOrder);
 router.delete('/:id', verifyToken(['Inventory Manager', 'Admin']), orderController.deleteOrder);
+router.post('/:id/send', verifyToken(['Inventory Manager', 'Admin']), orderController.sendOrderToSupplier);
+router.get('/:id/accept', orderController.acceptOrderBySupplier);
 
 module.exports = router;

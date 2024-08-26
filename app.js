@@ -18,6 +18,7 @@ const insuranceRoutes = require('./routes/InsuranceRoutes');
 const dashesRoutes = require('./routes/dashRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
 const reportRoutes = require('./routes/reportRoutes');
+const SupplierRoutes = require('./routes/supllierRoutes');
 
 const app = express();
 
@@ -50,6 +51,7 @@ app.use('/api/insurances', insuranceRoutes);
 app.use('/api/dashes;', dashesRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/reports', reportRoutes);
+app.use('/api/suppliers', SupplierRoutes);
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
