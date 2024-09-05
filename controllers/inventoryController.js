@@ -1,4 +1,8 @@
 const db = require('../models/db');
+const nodemailer = require('nodemailer');
+require('dotenv').config(); 
+const { format } = require('date-fns'); // Import date-fns for date formatting
+
 
 // Get all inventory items with filtering for low stock or expired items
 exports.getAllInventory = async (req, res) => {
@@ -69,9 +73,83 @@ exports.addInventoryItem = async (req, res) => {
         res.status(500).json({ message: 'Internal server error' });
     }
 };
+// Check inventory for items near expiration and create notifications
+// Check inventory for items near expiration and create notifications
 
-// Update an inventory item by ID with stock adjustment logic and automatic ordering
-// Update an inventory item by ID with stock adjustment logic and automatic ordering
+// Check inventory for items near expiration and create notifications
+const sendEmailAlert = async (itemName, expirationDate) => {
+    try {
+        // Format the expiration date to a readable format
+        const formattedDate = format(new Date(expirationDate), 'EEE, MMM dd yyyy');
+
+        // Configure the email transporter
+        const transporter = nodemailer.createTransport({
+            service: 'Gmail', // or your email service provider
+            auth: {
+                user: process.env.EMAIL_USER, // Email from environment variables
+                pass: process.env.EMAIL_PASS  // Password or app-specific password from environment variables
+            }
+        });
+
+        // Set up the email options
+        const mailOptions = {
+            from: process.env.EMAIL_USER, // sender address
+            to: 'cyusaelvis4@gmail.com', // list of receivers
+            subject: 'Urgent: Medicine Expiry Alert', // Subject line
+            text: `The inventory item ${itemName} is about to expire on ${formattedDate}. Please take necessary action.`
+        };
+
+        // Send the email
+        await transporter.sendMail(mailOptions);
+        console.log('Email alert sent successfully!');
+    } catch (err) {
+        console.error('Error sending email:', err.message); // Improved error logging
+    }
+};
+
+// Function to check inventory for items near expiration and create notifications
+exports.checkForExpiringItems = async () => {
+    try {
+        console.log('Running check for expiring items...');
+        // Query to find items near expiration
+        const query = `
+            SELECT id, name, expiration_date
+            FROM inventory
+            WHERE DATEDIFF(expiration_date, CURDATE()) <= 7 AND DATEDIFF(expiration_date, CURDATE()) > 0
+        `;
+        const results = await db.query(query);
+        
+        console.log(`Found ${results.length} item(s) near expiration.`);
+
+        if (results.length > 0) {
+            for (const item of results) {
+                const notificationQuery = `
+                    INSERT INTO notifications (message)
+                    VALUES (?)
+                `;
+                // Format the expiration date to a more readable format
+                const formattedDate = format(new Date(item.expiration_date), 'EEE, MMM dd yyyy');
+                const message = `Inventory item ${item.name} is about to expire on ${formattedDate}`;
+                
+                try {
+                    // Attempt to insert notification
+                    await db.query(notificationQuery, [message]);
+                    console.log(`Notification created for item ${item.name}.`);
+
+                    // Call sendEmailAlert to send the email
+                    await sendEmailAlert(item.name, item.expiration_date);
+                } catch (insertErr) {
+                    console.error(`Error inserting notification for item ${item.name}:`, insertErr.message);
+                }
+            }
+        } else {
+            console.log('No items found that are near expiration.');
+        }
+    } catch (err) {
+        console.error('Error checking for expiring items:', err.message);
+    }
+};
+
 exports.updateInventoryItem = async (req, res) => {
     try {
         const { id } = req.params;

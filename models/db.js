@@ -1,4 +1,4 @@
-const mysql = require('mysql2');  
+const mysql = require('mysql2');
 
 const pool = mysql.createPool({
     connectionLimit: 10,
@@ -9,17 +9,17 @@ const pool = mysql.createPool({
     port: 3306
 });
 
-
 const db = {
     query: (sql, params) => {
-        console.log("Executing SQL query:", sql, "with params:", params);
+        // Remove console logs from here
         return new Promise((resolve, reject) => {
             pool.query(sql, params, (err, results) => {
                 if (err) {
-                    console.error("Error during SQL query execution:", err);
+                    // Log the error if needed
+                    console.error("Error during SQL query execution:", err.message); // Log only the error message
                     return reject(err);
                 }
-                console.log("SQL query executed successfully, results:", results);
+                // Resolve the results without logging
                 resolve(results);
             });
         });
